@@ -6,6 +6,8 @@
 #define Align(size) (((size) + (ALIGNMENT - 1)) & ~(ALIGNMENT - 1))
 #define HEADER_SIZE (sizeof(struct balloc_Chunk))
 
+struct balloc_Chunk *startchunk = NULL;
+
 struct balloc_Chunk {
     int isAllocated;
     size_t size;
@@ -13,7 +15,6 @@ struct balloc_Chunk {
     struct balloc_Chunk *next;
     struct balloc_Chunk *previous;
 };
-
 
 int breakChunk(struct balloc_Chunk *chunk, size_t size) 
 {
@@ -53,7 +54,23 @@ int breakChunk(struct balloc_Chunk *chunk, size_t size)
     return 1;
 }
 
-struct balloc_Chunk *startchunk;
+struct balloc_Chunk* FindFreeChunk(size_t size, struct balloc_Chunk **last) {
+    struct balloc_Chunk *curr = startchunk;
+    *last = NULL;
+
+    while(curr != NULL)
+    {
+        if (!curr->isAllocated && curr->size >= size + HEADER_SIZE) {
+            return curr;
+        }
+
+        *last = curr;
+        curr = curr->next;
+    }
+
+    return NULL;
+}
+
 
 void *balloc(size_t size) {
     if (size == 0)
@@ -62,30 +79,18 @@ void *balloc(size_t size) {
     }
     size = Align(size);
 
-    int found = 0;
     struct balloc_Chunk *last = NULL;
 
     if (startchunk != NULL) 
     {
-        struct balloc_Chunk *curr = startchunk;
-
-        while(curr != NULL)
-        {
-            if (!curr->isAllocated && curr->size >= size + HEADER_SIZE) {
-                found = 1;
-                break;
-            }
-            last = curr;
-            curr = curr->next;
-        }
-
-        if (found) {
-            int res = breakChunk(curr, size);
+        struct balloc_Chunk* freechunk = FindFreeChunk(size, &last);
+        if (freechunk != NULL) {
+            int res = breakChunk(freechunk, size);
             if (res != 1) {
                 return NULL;
             }
 
-            return (void *)((char *)curr + HEADER_SIZE);
+            return (void *)((char *)freechunk + HEADER_SIZE);
         }
     }
 
@@ -156,3 +161,4 @@ void printHeap() {
         index ++;
     }
 }
+
