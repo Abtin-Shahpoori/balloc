@@ -137,7 +137,7 @@ void *brealloc(void* ptr, size_t newSize) {
     }
 
     if (newSize == 0) {
-        free(ptr);
+        bfree(ptr);
         return NULL;
     }
 
