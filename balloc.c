@@ -1,3 +1,4 @@
+#include <string.h>
 #include "balloc.h"
 #include <unistd.h>
 #include <stdio.h>
@@ -113,6 +114,49 @@ void *balloc(size_t size) {
     }
 
     return (void *)((char *)chunk + HEADER_SIZE);
+}
+
+void *bcalloc(size_t num, size_t size) {
+    if (num != 0 && size > (size_t)-1 / num) {
+        return NULL; 
+    }
+
+    size_t total = num * size;
+    void *ptr = balloc(total);
+    if (!ptr) {
+        return NULL;
+    }
+
+    memset(ptr, 0, total);
+    return ptr;
+}
+
+void *brealloc(void* ptr, size_t newSize) {
+    if (ptr == NULL) {
+        return balloc(newSize);
+    }
+
+    if (newSize == 0) {
+        free(ptr);
+        return NULL;
+    }
+
+    struct balloc_Chunk* chunk = (struct balloc_Chunk *)((char *)ptr - HEADER_SIZE);
+
+    size_t currentPayload = chunk->size - HEADER_SIZE;
+
+    if (currentPayload >= newSize) {
+        return ptr;
+    }
+
+    void *new_ptr = balloc(newSize);
+    if (!new_ptr) {
+        return NULL; // Allocation failed; original ptr is left untouched
+    }
+    memcpy(new_ptr, ptr, currentPayload);
+    bfree(ptr);
+
+    return new_ptr;
 }
 
 void bfree(void* addr) {
