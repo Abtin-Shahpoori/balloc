@@ -165,6 +165,16 @@ void bfree(void* addr) {
     }
 
     struct balloc_Chunk* chunk = (struct balloc_Chunk *)((char *)addr - HEADER_SIZE);
+
+    if (chunk->next == NULL && !chunk->isAllocated) {
+        if (chunk->previous != NULL) {
+            chunk->previous->next = NULL;
+        } else {
+            startchunk = NULL;
+        }
+        sbrk(-chunk->size);
+    }
+
     chunk->isAllocated= 0;
     if (chunk->next != NULL && !chunk->next->isAllocated) {
         chunk->size += chunk->next->size;
