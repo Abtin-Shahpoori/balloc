@@ -184,6 +184,7 @@ void bfree(void* addr) {
         if (chunk->next != NULL) {
             chunk->next->previous = chunk->previous;
         }
+        chunk = chunk->previous;
     }
 
     if (chunk->next == NULL && !chunk->isAllocated) {
