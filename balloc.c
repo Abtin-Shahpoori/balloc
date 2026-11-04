@@ -2,11 +2,13 @@
 #include "balloc.h"
 #include <unistd.h>
 #include <stdio.h>
+#include <pthread.h>
 
 #define ALIGNMENT 16
 #define Align(size) (((size) + (ALIGNMENT - 1)) & ~(ALIGNMENT - 1))
 #define HEADER_SIZE (sizeof(struct balloc_Chunk))
 
+static pthread_mutex_t balloc_lock = PTHREAD_MUTEX_INITIALIZER;
 struct balloc_Chunk *startchunk = NULL;
 
 struct balloc_Chunk {
@@ -73,7 +75,7 @@ struct balloc_Chunk* FindFreeChunk(size_t size, struct balloc_Chunk **last) {
 }
 
 
-void *balloc(size_t size) {
+static void *balloc_unlocked(size_t size) {
     if (size == 0)
     {
         return NULL;
@@ -116,6 +118,13 @@ void *balloc(size_t size) {
     return (void *)((char *)chunk + HEADER_SIZE);
 }
 
+void *balloc(size_t size) {
+    pthread_mutex_lock(&balloc_lock);
+    void *ptr = balloc_unlocked(size);
+    pthread_mutex_unlock(&balloc_lock);
+    return ptr;
+}
+
 void *bcalloc(size_t num, size_t size) {
     if (num != 0 && size > (size_t)-1 / num) {
         return NULL; 
@@ -131,35 +140,7 @@ void *bcalloc(size_t num, size_t size) {
     return ptr;
 }
 
-void *brealloc(void* ptr, size_t newSize) {
-    if (ptr == NULL) {
-        return balloc(newSize);
-    }
-
-    if (newSize == 0) {
-        bfree(ptr);
-        return NULL;
-    }
-
-    struct balloc_Chunk* chunk = (struct balloc_Chunk *)((char *)ptr - HEADER_SIZE);
-
-    size_t currentPayload = chunk->size - HEADER_SIZE;
-
-    if (currentPayload >= newSize) {
-        return ptr;
-    }
-
-    void *new_ptr = balloc(newSize);
-    if (!new_ptr) {
-        return NULL; // Allocation failed; original ptr is left untouched
-    }
-    memcpy(new_ptr, ptr, currentPayload);
-    bfree(ptr);
-
-    return new_ptr;
-}
-
-void bfree(void* addr) {
+static void bfree_unlocked(void* addr) {
     if (addr == NULL) {
         return;
     }
@@ -197,13 +178,54 @@ void bfree(void* addr) {
     }
 }
 
+void bfree(void* addr) {
+    pthread_mutex_lock(&balloc_lock);
+    bfree_unlocked(addr);
+    pthread_mutex_unlock(&balloc_lock);
+}
+
+void *brealloc(void* ptr, size_t newSize) {
+    if (ptr == NULL) {
+        return balloc(newSize);
+    }
+
+    if (newSize == 0) {
+        bfree(ptr);
+        return NULL;
+    }
+
+    pthread_mutex_lock(&balloc_lock);
+
+    struct balloc_Chunk* chunk = (struct balloc_Chunk *)((char *)ptr - HEADER_SIZE);
+
+    size_t currentPayload = chunk->size - HEADER_SIZE;
+
+    if (currentPayload >= newSize) {
+        pthread_mutex_unlock(&balloc_lock);
+        return ptr;
+    }
+
+    void *new_ptr = balloc_unlocked(newSize);
+    if (!new_ptr) {
+        pthread_mutex_unlock(&balloc_lock);
+        return NULL; // Allocation failed; original ptr is left untouched
+    }
+    memcpy(new_ptr, ptr, currentPayload);
+    bfree_unlocked(ptr);
+
+    pthread_mutex_unlock(&balloc_lock);
+    return new_ptr;
+}
+
 void printHeap() {
+    pthread_mutex_lock(&balloc_lock);
     printf("printingHeap...\n");
     printf("=====================================\n");
     struct balloc_Chunk* curr = startchunk;
     if (curr == NULL) {
         printf("emptyHeap");
         printf("=====================================\n");
+        pthread_mutex_unlock(&balloc_lock);
         return;
     }
 
@@ -219,5 +241,6 @@ void printHeap() {
         curr = curr->next;
         index ++;
     }
+    pthread_mutex_unlock(&balloc_lock);
 }
 

@@ -1,5 +1,5 @@
 CC = gcc
-CCFLAGS = -Wall -Wextra -g
+CCFLAGS = -Wall -Wextra -g -pthread
 
 SRC = $(wildcard *.c)
 HDR = $(wildcard *.h)
@@ -16,7 +16,7 @@ run: $(TARGET)
 	./${TARGET}
 
 release:
-	$(MAKE) BUILD_DIR=bin/RELEASE  CCFLAGS="-Wall -Wextra -O3 -DNDEBUG" all
+	$(MAKE) BUILD_DIR=bin/RELEASE  CCFLAGS="-Wall -Wextra -O3 -DNDEBUG -pthread" all
 
 clean:
 	rm -rf bin
